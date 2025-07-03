@@ -1,28 +1,77 @@
-import requests
-from bs4 import BeautifulSoup
-import csv
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+import time
 
-def get_rating(text):
-    return {"One": 1, "Two": 2, "Three": 3, "Four": 4, "Five": 5}.get(text, 0)
+# Setup
+driver = webdriver.Chrome()
+driver.maximize_window()
+driver.get("http://automationpractice.com/index.php")
 
-def scrape_books(pages=1):
-    data = []
-    for page in range(1, pages+1):
-        url = f"https://books.toscrape.com/catalogue/page-{page}.html"
-        soup = BeautifulSoup(requests.get(url).text, "html.parser")
-        for book in soup.select("article.product_pod"):
-            title = book.h3.a["title"]
-            price = book.select_one(".price_color").text[1:]
-            rating = get_rating(book.p["class"][1])
-            data.append([title, price, rating])
-    return data
+try:
+    # 1. Search for an item
+    search_box = driver.find_element(By.ID, "search_query_top")
+    search_box.send_keys("dress")
+    search_box.send_keys(Keys.RETURN)
+    time.sleep(2)
+    
+    # 2. Add first product to cart
+    product = driver.find_element(By.CLASS_NAME, "product-container")
+    product.hover = webdriver.ActionChains(driver).move_to_element(product).perform()
+    driver.find_element(By.CSS_SELECTOR, ".ajax_add_to_cart_button").click()
+    time.sleep(3)
+    
+    # 3. Proceed to checkout
+    driver.find_element(By.CSS_SELECTOR, ".button-container a[title='Proceed to checkout']").click()
+    time.sleep(2)
 
-def save_csv(data, filename="books.csv"):
-    with open(filename, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["Title", "Price", "Rating"])
-        writer.writerows(data)
+    # 4. Summary Page
+    assert "Order" in driver.title
+    driver.find_element(By.CSS_SELECTOR, "a.button.btn.btn-default.standard-checkout.button-medium").click()
+    time.sleep(2)
 
-books = scrape_books(3)
-save_csv(books)
-print("Scraping complete. Data saved to books.csv.")
+    # 5. Login / Create Account Page
+    driver.find_element(By.ID, "email_create").send_keys("testuser12345@example.com")
+    driver.find_element(By.ID, "SubmitCreate").click()
+    time.sleep(4)
+
+    # 6. Fill out form (only basic fields for demo)
+    driver.find_element(By.ID, "id_gender1").click()
+    driver.find_element(By.ID, "customer_firstname").send_keys("Test")
+    driver.find_element(By.ID, "customer_lastname").send_keys("User")
+    driver.find_element(By.ID, "passwd").send_keys("Test1234")
+    driver.find_element(By.ID, "address1").send_keys("123 Main St")
+    driver.find_element(By.ID, "city").send_keys("Los Angeles")
+    driver.find_element(By.ID, "id_state").send_keys("California")
+    driver.find_element(By.ID, "postcode").send_keys("90001")
+    driver.find_element(By.ID, "phone_mobile").send_keys("1234567890")
+    driver.find_element(By.ID, "submitAccount").click()
+    time.sleep(3)
+
+    # 7. Address Page
+    driver.find_element(By.NAME, "processAddress").click()
+    time.sleep(2)
+
+    # 8. Shipping Page
+    driver.find_element(By.ID, "cgv").click()
+    driver.find_element(By.NAME, "processCarrier").click()
+    time.sleep(2)
+
+    # 9. Payment Page
+    driver.find_element(By.CLASS_NAME, "bankwire").click()
+    time.sleep(2)
+
+    # 10. Confirm Order
+    driver.find_element(By.CSS_SELECTOR, "#cart_navigation button").click()
+    time.sleep(2)
+
+    # 11. Verify Order Success
+    success_message = driver.find_element(By.CLASS_NAME, "cheque-indent").text
+    assert "complete" in success_message.lower()
+    print("[PASS] Checkout process completed successfully.")
+
+except Exception as e:
+    print(f"[FAIL] Error during checkout process: {e}")
+
+finally:
+    driver.quit()
